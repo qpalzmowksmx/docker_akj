@@ -1,0 +1,19 @@
+dockerforec2
+ │ docker-compose.yml
+ │ mysql_dashboard.json
+ │ node_dashboard.json
+ │ proxysql_dashboard.json
+ │ ├─config
+    │ master.cnf
+    │ proxysql.cnf
+    │ slave.cnf
+ │ ├─prometheus
+    │ prometheus.yml
+ │ ├─grafana
+    │ └─dashboards
+ │ └─init
+    ├─master
+        │ 01-create_user.sql
+        │ 02-create_database.sql
+    └─slave 
+         |  01-slave_setup.sql

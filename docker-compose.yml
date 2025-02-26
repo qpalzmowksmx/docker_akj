@@ -1,0 +1,182 @@
+version: '3.8'
+
+services:
+  proxysql:
+    image: proxysql/proxysql:2.7.2
+    container_name: proxysql
+    ports:
+      - "6033:6033"
+      - "6032:6032"
+    volumes:
+      - /home/ec2-user/docker-files/config/proxysql.cnf:/etc/proxysql.cnf:ro
+      - /home/ec2-user/docker-files/data/proxysql:/var/lib/proxysql
+    networks:
+      - app_network
+    depends_on:
+      - mysql_master
+      - mysql_slave1
+
+  mysql_master:
+    image: mysql:8.0.41
+    container_name: mysql_master
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_SERVER_ID: 1
+      MYSQL_ROOT_PASSWORD: AKJ1passwd
+      MYSQL_DATABASE: flight_data
+      MYSQL_USER: flaskuser
+      MYSQL_PASSWORD: AKJ1passwd
+    volumes:
+      - /home/ec2-user/docker-files/config/master.cnf:/etc/mysql/my.cnf
+      - /home/ec2-user/docker-files/data/mysql_master:/var/lib/mysql
+      - /home/ec2-user/docker-files/init/master:/docker-entrypoint-initdb.d
+      - /home/ec2-user/docker-files/dumps:/docker-dumps
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mysql_slave1:
+    image: mysql:8.0.41
+    container_name: mysql_slave1
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - "3310:3306"
+    environment:
+      MYSQL_SERVER_ID: 2
+      MYSQL_ROOT_PASSWORD: AKJ1passwd
+      MYSQL_DATABASE: flight_data
+      MYSQL_USER: flaskuser
+      MYSQL_PASSWORD: AKJ1passwd
+    volumes:
+      - /home/ec2-user/docker-files/config/slave1.cnf:/etc/mysql/my.cnf
+      - /home/ec2-user/docker-files/data/mysql_slave1:/var/lib/mysql
+      - /home/ec2-user/docker-files/init/slave:/docker-entrypoint-initdb.d
+    networks:
+      - app_network
+    depends_on:
+      mysql_master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mysqld_exporter_master:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld_exporter_master
+    command:
+      - '--web.listen-address=:9104'
+      - '--collect.info_schema.tables'
+      - '--collect.info_schema.innodb_metrics'
+      - '--collect.global_status'
+      - '--collect.global_variables'
+      - '--collect.slave_status'
+    environment:
+      - DATA_SOURCE_NAME=flaskuser:AKJ1passwd@(mysql_master:3306)/
+    ports:
+      - "9104:9104"
+    networks:
+      - app_network
+    depends_on:
+      mysql_master:
+        condition: service_healthy
+
+  mysqld_exporter_slave:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld_exporter_slave
+    command:
+      - '--web.listen-address=:9105'
+      - '--collect.info_schema.tables'
+      - '--collect.info_schema.innodb_metrics'
+      - '--collect.global_status'
+      - '--collect.global_variables'
+      - '--collect.slave_status'
+    environment:
+      - DATA_SOURCE_NAME=flaskuser:AKJ1passwd@(mysql_slave1:3306)/
+    ports:
+      - "9105:9105"
+    networks:
+      - app_network
+    depends_on:
+      mysql_slave1:
+        condition: service_healthy
+
+  node_exporter_master:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_exporter_master
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - app_network
+
+  node_exporter_slave:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_exporter_slave
+    restart: unless-stopped
+    ports:
+      - "9101:9100"
+    command:
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - app_network
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - /home/ec2-user/docker-files/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    depends_on:
+      - mysqld_exporter_master
+      - mysqld_exporter_slave
+      - node_exporter_master
+      - node_exporter_slave
+    networks:
+      - app_network
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - /home/ec2-user/docker-files/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - app_network
+volumes:
+  grafana-storage:
+
+networks:
+  app_network:
+    driver: bridge

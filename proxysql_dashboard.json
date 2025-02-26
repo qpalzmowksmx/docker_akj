@@ -1,0 +1,56 @@
+{
+    "annotations": {
+      "list": []
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": 3,
+    "title": "ProxySQL Monitoring",
+    "panels": [
+      {
+        "title": "Connection Pool Status",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "proxysql_connection_pool_status",
+            "legendFormat": "Active Connections"
+          }
+        ]
+      },
+      {
+        "title": "Query Processing Time",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(proxysql_query_time_total[5m])",
+            "legendFormat": "Query Time"
+          }
+        ]
+      },
+      {
+        "title": "Backend Server Status",
+        "type": "stat",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "proxysql_server_status",
+            "legendFormat": "Server Status"
+          }
+        ]
+      },
+      {
+        "title": "Query Distribution",
+        "type": "pie",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(proxysql_queries_total[5m])) by (hostgroup)",
+            "legendFormat": "Hostgroup {{hostgroup}}"
+          }
+        ]
+      }
+    ]
+  }

@@ -1,0 +1,107 @@
+datadir="/var/lib/proxysql"
+
+admin_variables =
+{
+    admin_credentials="admin:admin;radmin:radmin"
+    mysql_ifaces="0.0.0.0:6032"
+    refresh_interval=2000
+    debug=false
+}
+
+mysql_variables =
+{
+    threads=4
+    max_connections=2048
+    default_query_delay=0
+    default_query_timeout=36000000
+    have_compress=true
+    poll_timeout=2000
+    interfaces="0.0.0.0:6033"
+    default_schema="information_schema"
+    stacksize=1048576
+    server_version="8.0.41"
+    connect_timeout_server=3000
+    monitor_username="monitor"
+    monitor_password="monitor"
+    monitor_history=600000
+    monitor_connect_interval=60000
+    monitor_ping_interval=10000
+    monitor_read_only_interval=1500
+    monitor_read_only_timeout=500
+    ping_timeout_server=500
+    ping_interval_server=10000
+}
+
+mysql_servers =
+(
+    {
+        address="mysql_master"
+        port=3306
+        hostgroup=10
+        max_connections=200
+        max_replication_lag=30
+        weight=1
+        status="ONLINE"
+    },
+    {
+        address="mysql_slave1"
+        port=3306
+        hostgroup=20
+        max_connections=200
+        max_replication_lag=30
+        weight=1
+        status="ONLINE"
+    }
+)
+
+mysql_users =
+(
+    {
+        username="flaskuser"
+        password="AKJ1passwd"
+        default_hostgroup=10
+        max_connections=1000
+        default_schema="flight_data"
+        active=1
+        transaction_persistent=1
+    }
+)
+
+mysql_query_rules =
+(
+    {
+        rule_id=1
+        active=1
+        match_pattern="^SELECT"
+        destination_hostgroup=20
+        apply=1
+        cache_ttl=0
+    },
+    {
+        rule_id=2
+        active=1
+        match_pattern=".*"
+        destination_hostgroup=10
+        apply=1
+    }
+)
+
+# 모니터링 설정 추가
+mysql_replication_hostgroups =
+(
+    {
+        writer_hostgroup=10
+        reader_hostgroup=20
+        comment="master-slave cluster"
+    }
+)
+
+
+#
+마스터/슬레이브 설정에 GTID 복제 관련 설정 추가
+바이너리 로그 및 복제 관련 설정 보완
+ProxySQL 모니터링 설정 강화
+복제 지연 모니터링 설정 추가
+트랜잭션 지속성 설정 추가
+보안 관련 설정 보완
+#
